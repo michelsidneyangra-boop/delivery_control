@@ -37,7 +37,7 @@
 - [x] Garantir responsividade
 
 ## Testes
-- [ ] Testar CRUD de entregas
-- [ ] Testar CRUD de motoristas
-- [ ] Testar fluxo de entrada/saída/retorno
-- [ ] Testar buscas e filtros
+- [x] Testar CRUD de entregas
+- [x] Testar CRUD de motoristas
+- [x] Testar fluxo de entrada/saída/retorno
+- [x] Testar buscas e filtros

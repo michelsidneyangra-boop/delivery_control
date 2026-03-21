@@ -30,6 +30,7 @@ function createAuthContext(): TrpcContext {
 describe("Deliveries API", () => {
   let ctx: TrpcContext;
   let caller: ReturnType<typeof appRouter.createCaller>;
+  const timestamp = Date.now();
 
   beforeAll(() => {
     ctx = createAuthContext();
@@ -38,7 +39,7 @@ describe("Deliveries API", () => {
 
   it("should create a new delivery", async () => {
     const result = await caller.deliveries.create({
-      noteNumber: "TEST001",
+      noteNumber: `TEST-${timestamp}-001`,
       clientCode: "C001",
       clientName: "Test Client",
       address: "Test Address 123",
@@ -48,8 +49,8 @@ describe("Deliveries API", () => {
       entryDate: new Date(),
     });
 
-    expect(result).toBeDefined();
-    expect(result.noteNumber).toBe("TEST001");
+      expect(result).toBeDefined();
+      expect(result.noteNumber).toBe(`TEST-${timestamp}-001`);
     expect(result.clientName).toBe("Test Client");
     expect(result.status).toBe("pending");
   });
@@ -60,8 +61,9 @@ describe("Deliveries API", () => {
   });
 
   it("should not allow duplicate note numbers", async () => {
+    const noteNumber = `TEST-${timestamp}-DUP`;
     await caller.deliveries.create({
-      noteNumber: "TEST002",
+      noteNumber,
       clientCode: "C002",
       clientName: "Test Client 2",
       address: "Test Address 456",
@@ -72,7 +74,7 @@ describe("Deliveries API", () => {
 
     try {
       await caller.deliveries.create({
-        noteNumber: "TEST002",
+        noteNumber,
         clientCode: "C003",
         clientName: "Test Client 3",
         address: "Test Address 789",
@@ -90,6 +92,7 @@ describe("Deliveries API", () => {
 describe("Drivers API", () => {
   let ctx: TrpcContext;
   let caller: ReturnType<typeof appRouter.createCaller>;
+  const timestamp = Date.now();
 
   beforeAll(() => {
     ctx = createAuthContext();
@@ -98,13 +101,13 @@ describe("Drivers API", () => {
 
   it("should create a new driver", async () => {
     const result = await caller.drivers.create({
-      name: "Test Driver",
+      name: `Test Driver ${timestamp}`,
       phone: "123456789",
       email: "driver@test.com",
     });
 
     expect(result).toBeDefined();
-    expect(result.name).toBe("Test Driver");
+    expect(result.name).toBe(`Test Driver ${timestamp}`);
     expect(result.status).toBe("active");
   });
 

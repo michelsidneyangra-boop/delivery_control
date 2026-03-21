@@ -130,7 +130,7 @@ export default function Dashboard() {
                   <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os status</SelectItem>
+                  <SelectItem value="all">Todos os status</SelectItem>
                   <SelectItem value="pending">Pendente</SelectItem>
                   <SelectItem value="in_transit">Em Trânsito</SelectItem>
                   <SelectItem value="delivered">Entregue</SelectItem>
@@ -142,10 +142,10 @@ export default function Dashboard() {
                   <SelectValue placeholder="Filtrar por bairro" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os bairros</SelectItem>
+                  <SelectItem value="all">Todos os bairros</SelectItem>
                   {neighborhoods.map((neighborhood) => (
-                    <SelectItem key={neighborhood} value={neighborhood || ""}>
-                      {neighborhood}
+                    <SelectItem key={neighborhood} value={neighborhood || "unknown"}>
+                      {neighborhood || "Sem bairro"}
                     </SelectItem>
                   ))}
                 </SelectContent>
