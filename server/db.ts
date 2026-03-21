@@ -227,6 +227,31 @@ export async function getDeliveryByNoteNumber(noteNumber: string): Promise<Deliv
   return result[0];
 }
 
+export async function getDeliveryByNoteAndCode(noteNumber: string, clientCode: string): Promise<Delivery | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(deliveries)
+    .where(
+      and(
+        eq(deliveries.noteNumber, noteNumber),
+        eq(deliveries.clientCode, clientCode)
+      )
+    )
+    .limit(1);
+  return result[0];
+}
+
+export async function getClientByCode(clientCode: string): Promise<Delivery | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(deliveries)
+    .where(eq(deliveries.clientCode, clientCode))
+    .limit(1);
+  return result[0];
+}
+
 export async function updateDelivery(id: number, data: Partial<InsertDelivery>): Promise<Delivery> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -273,6 +298,23 @@ export async function getLatestMovement(deliveryId: number): Promise<DeliveryMov
   const result = await db.select().from(deliveryMovements)
     .where(eq(deliveryMovements.deliveryId, deliveryId))
     .orderBy(desc(deliveryMovements.movementDate))
+    .limit(1);
+  
+  return result[0];
+}
+
+export async function getClientInfo(clientCode: string): Promise<{ name: string; address: string; neighborhood: string | null; phone: string | null } | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select({
+    name: deliveries.clientName,
+    address: deliveries.address,
+    neighborhood: deliveries.neighborhood,
+    phone: deliveries.phone,
+  })
+    .from(deliveries)
+    .where(eq(deliveries.clientCode, clientCode))
     .limit(1);
   
   return result[0];

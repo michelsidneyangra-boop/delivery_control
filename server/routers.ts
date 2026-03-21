@@ -97,12 +97,12 @@ export const appRouter = router({
         entryDate: z.date(),
       }))
       .mutation(async ({ input }) => {
-        // Check if note already exists
-        const existing = await db.getDeliveryByNoteNumber(input.noteNumber);
+        // Check if note + client code combination already exists
+        const existing = await db.getDeliveryByNoteAndCode(input.noteNumber, input.clientCode);
         if (existing) {
           throw new TRPCError({
             code: "BAD_REQUEST",
-            message: "Nota fiscal já cadastrada",
+            message: "Entrega já cadastrada para esta nota fiscal e código de cliente",
           });
         }
 
@@ -135,6 +135,23 @@ export const appRouter = router({
         const delivery = await db.getDeliveryByNoteNumber(input);
         if (!delivery) throw new TRPCError({ code: "NOT_FOUND" });
         return delivery;
+      }),
+
+    getClientInfo: protectedProcedure
+      .input(z.string())
+      .query(async ({ input }) => {
+        const clientInfo = await db.getClientInfo(input);
+        return clientInfo || null;
+      }),
+
+    checkDuplicate: protectedProcedure
+      .input(z.object({
+        noteNumber: z.string(),
+        clientCode: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const existing = await db.getDeliveryByNoteAndCode(input.noteNumber, input.clientCode);
+        return { isDuplicate: !!existing };
       }),
 
     update: protectedProcedure

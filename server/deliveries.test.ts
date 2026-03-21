@@ -60,11 +60,12 @@ describe("Deliveries API", () => {
     expect(Array.isArray(result)).toBe(true);
   });
 
-  it("should not allow duplicate note numbers", async () => {
+  it("should not allow duplicate note + client code combination", async () => {
     const noteNumber = `TEST-${timestamp}-DUP`;
+    const clientCode = "C002";
     await caller.deliveries.create({
       noteNumber,
-      clientCode: "C002",
+      clientCode,
       clientName: "Test Client 2",
       address: "Test Address 456",
       neighborhood: "Test Neighborhood",
@@ -75,7 +76,7 @@ describe("Deliveries API", () => {
     try {
       await caller.deliveries.create({
         noteNumber,
-        clientCode: "C003",
+        clientCode,
         clientName: "Test Client 3",
         address: "Test Address 789",
         neighborhood: "Test Neighborhood",

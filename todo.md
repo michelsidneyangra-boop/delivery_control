@@ -41,3 +41,27 @@
 - [x] Testar CRUD de motoristas
 - [x] Testar fluxo de entrada/saída/retorno
 - [x] Testar buscas e filtros
+
+## Melhorias Solicitadas
+
+### Validação e Duplicatas
+- [x] Validar duplicatas por N.Nota + Código Cliente (não apenas N.Nota)
+- [x] Rejeitar entrada se combinação já existe
+- [x] Mensagem de erro clara ao usuário
+
+### Auto-preenchimento de Cliente
+- [x] Buscar cliente por Código Cliente no formulário
+- [x] Auto-preencher Nome, Endereço, Bairro, Telefone
+- [x] Permitir edição dos campos auto-preenchidos
+
+### Filtros de Busca
+- [x] Filtro por N.Nota (busca exata)
+- [x] Filtro por Código Cliente (busca exata)
+- [x] Combinar filtros com status e bairro
+
+### Cores de Status
+- [x] Pendente: Azul (#3B82F6)
+- [x] Em Trânsito: Amarelo (#F59E0B)
+- [x] Entregue: Verde (#10B981)
+- [x] Retornado: Vermelho (#EF4444)
+- [x] Aplicar cores em badges, linhas de tabela e cards

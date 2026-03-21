@@ -33,13 +33,17 @@ const statusConfig = {
 export default function Dashboard() {
   const [, setLocation] = useLocation();
   const [search, setSearch] = useState("");
+  const [noteFilter, setNoteFilter] = useState("");
+  const [clientCodeFilter, setClientCodeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [neighborhoodFilter, setNeighborhoodFilter] = useState<string>("");
 
+  const combinedSearch = [noteFilter, clientCodeFilter, search].filter(Boolean).join(" ");
+
   const { data: deliveries, isLoading } = trpc.deliveries.list.useQuery({
-    search: search || undefined,
-    status: statusFilter || undefined,
-    neighborhood: neighborhoodFilter || undefined,
+    search: combinedSearch || undefined,
+    status: statusFilter && statusFilter !== "all" ? statusFilter : undefined,
+    neighborhood: neighborhoodFilter && neighborhoodFilter !== "all" ? neighborhoodFilter : undefined,
   });
 
   const { data: summary } = trpc.dashboard.summary.useQuery();
@@ -118,11 +122,17 @@ export default function Dashboard() {
             <CardTitle>Filtros</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <Input
-                placeholder="Buscar por nota, cliente ou telefone..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                placeholder="N. Nota Fiscal"
+                value={noteFilter}
+                onChange={(e) => setNoteFilter(e.target.value)}
+                className="border-input"
+              />
+              <Input
+                placeholder="Código Cliente"
+                value={clientCodeFilter}
+                onChange={(e) => setClientCodeFilter(e.target.value)}
                 className="border-input"
               />
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -182,8 +192,14 @@ export default function Dashboard() {
                     {deliveries.map((delivery) => {
                       const statusInfo = statusConfig[delivery.status as keyof typeof statusConfig];
                       const Icon = statusInfo?.icon || Package;
+                      const rowColors = {
+                        pending: "border-l-4 border-l-blue-500 bg-blue-50/20 dark:bg-blue-950/10",
+                        in_transit: "border-l-4 border-l-amber-500 bg-amber-50/20 dark:bg-amber-950/10",
+                        delivered: "border-l-4 border-l-emerald-500 bg-emerald-50/20 dark:bg-emerald-950/10",
+                        returned: "border-l-4 border-l-red-500 bg-red-50/20 dark:bg-red-950/10",
+                      };
                       return (
-                        <TableRow key={delivery.id} className="hover:bg-muted/50">
+                        <TableRow key={delivery.id} className={`hover:bg-muted/50 transition-colors ${rowColors[delivery.status as keyof typeof rowColors] || ""}`}>
                           <TableCell className="font-semibold">{delivery.noteNumber}</TableCell>
                           <TableCell>{delivery.clientName}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">
@@ -191,10 +207,10 @@ export default function Dashboard() {
                           </TableCell>
                           <TableCell>{delivery.neighborhood}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="gap-1">
-                              <Icon className="w-3 h-3" />
+                            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full font-medium text-sm ${statusInfo?.color}`}>
+                              <Icon className="w-4 h-4" />
                               {statusInfo?.label}
-                            </Badge>
+                            </div>
                           </TableCell>
                           <TableCell className="text-sm">
                             {new Date(delivery.entryDate).toLocaleDateString("pt-BR")}

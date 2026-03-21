@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { AlertCircle, CheckCircle } from "lucide-react";
 
 export default function NewDelivery() {
   const [, setLocation] = useLocation();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDuplicate, setIsDuplicate] = useState(false);
+  const [isLoadingClient, setIsLoadingClient] = useState(false);
   const [formData, setFormData] = useState({
     noteNumber: "",
     clientCode: "",
@@ -23,6 +26,38 @@ export default function NewDelivery() {
   });
 
   const createDelivery = trpc.deliveries.create.useMutation();
+  const getClientInfo = trpc.deliveries.getClientInfo.useQuery(
+    formData.clientCode,
+    { enabled: formData.clientCode.length > 0 }
+  );
+  const checkDuplicate = trpc.deliveries.checkDuplicate.useQuery(
+    { noteNumber: formData.noteNumber, clientCode: formData.clientCode },
+    { enabled: formData.noteNumber.length > 0 && formData.clientCode.length > 0 }
+  );
+
+  // Auto-preencher dados do cliente quando encontrado
+  useEffect(() => {
+    if (getClientInfo.data) {
+      setFormData((prev) => ({
+        ...prev,
+        clientName: getClientInfo.data?.name || prev.clientName,
+        address: getClientInfo.data?.address || prev.address,
+        neighborhood: getClientInfo.data?.neighborhood || prev.neighborhood,
+        phone: getClientInfo.data?.phone || prev.phone,
+      }));
+      toast.success("Dados do cliente carregados!");
+    }
+  }, [getClientInfo.data]);
+
+  // Verificar duplicatas
+  useEffect(() => {
+    if (checkDuplicate.data) {
+      setIsDuplicate(checkDuplicate.data.isDuplicate);
+      if (checkDuplicate.data.isDuplicate) {
+        toast.error("Entrega já cadastrada para esta nota e código de cliente!");
+      }
+    }
+  }, [checkDuplicate.data]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -31,6 +66,12 @@ export default function NewDelivery() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isDuplicate) {
+      toast.error("Não é possível criar entrega duplicada!");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -56,6 +97,15 @@ export default function NewDelivery() {
           <p className="text-muted-foreground">Registre uma nova entrega no sistema</p>
         </div>
 
+        {isDuplicate && (
+          <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-red-600" />
+            <p className="text-red-700">
+              Entrega já cadastrada para esta nota fiscal e código de cliente
+            </p>
+          </div>
+        )}
+
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle>Informações da Entrega</CardTitle>
@@ -76,14 +126,26 @@ export default function NewDelivery() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="clientCode">Código Cliente *</Label>
-                  <Input
-                    id="clientCode"
-                    name="clientCode"
-                    value={formData.clientCode}
-                    onChange={handleChange}
-                    placeholder="Ex: 84089"
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="clientCode"
+                      name="clientCode"
+                      value={formData.clientCode}
+                      onChange={handleChange}
+                      placeholder="Ex: 84089"
+                      required
+                    />
+                    {getClientInfo.isLoading && (
+                      <div className="flex items-center justify-center px-3">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
+                      </div>
+                    )}
+                    {getClientInfo.data && !getClientInfo.isLoading && (
+                      <div className="flex items-center justify-center px-3">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -149,7 +211,7 @@ export default function NewDelivery() {
               <div className="flex gap-4 pt-4">
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isDuplicate}
                   className="bg-primary"
                 >
                   {isSubmitting ? "Criando..." : "Criar Entrega"}
