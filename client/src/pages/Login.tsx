@@ -30,8 +30,11 @@ export default function Login() {
       // Store user info in localStorage
       localStorage.setItem("user", JSON.stringify(result));
       localStorage.setItem("isLoggedIn", "true");
+      // Disparar evento para atualizar o estado do App
+      window.dispatchEvent(new Event("isLoggedInChanged"));
       toast.success("Login realizado com sucesso!");
-      setLocation("/");
+      // Redirecionar para o dashboard
+      setTimeout(() => setLocation("/dashboard"), 500);
     } catch (error: any) {
       toast.error(error.message || "Erro ao fazer login");
     } finally {
@@ -62,8 +65,11 @@ export default function Login() {
       // Auto login after register
       localStorage.setItem("user", JSON.stringify(result));
       localStorage.setItem("isLoggedIn", "true");
+      // Disparar evento para atualizar o estado do App
+      window.dispatchEvent(new Event("isLoggedInChanged"));
       toast.success("Cadastro realizado com sucesso!");
-      setLocation("/");
+      // Redirecionar para o dashboard
+      setTimeout(() => setLocation("/dashboard"), 500);
     } catch (error: any) {
       toast.error(error.message || "Erro ao cadastrar");
     } finally {

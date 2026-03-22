@@ -17,10 +17,20 @@ function Router() {
 
   useEffect(() => {
     const handleStorageChange = () => {
-      setIsLoggedIn(localStorage.getItem("isLoggedIn") === "true");
+      const loggedIn = localStorage.getItem("isLoggedIn") === "true";
+      setIsLoggedIn(loggedIn);
     };
+
+    // Ouvir mudanças no localStorage (funciona em abas diferentes)
     window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+
+    // Também ouvir mudanças locais (mesma aba)
+    window.addEventListener("isLoggedInChanged", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("isLoggedInChanged", handleStorageChange);
+    };
   }, []);
 
   return (
