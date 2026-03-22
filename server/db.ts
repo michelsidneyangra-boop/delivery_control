@@ -1,17 +1,21 @@
 import { eq, and, or, like, gte, lte, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import bcrypt from "bcrypt";
 import { 
   InsertUser, 
   users,
   drivers,
   deliveries,
   deliveryMovements,
+  loginUsers,
   type Driver,
   type Delivery,
   type DeliveryMovement,
   type InsertDriver,
   type InsertDelivery,
-  type InsertDeliveryMovement
+  type InsertDeliveryMovement,
+  type LoginUser,
+  type InsertLoginUser
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -341,4 +345,48 @@ export async function getDeliveriesByDriver(driverId: number): Promise<Delivery[
   
   const conditions = deliveryIds.map(id => eq(deliveries.id, id));
   return db.select().from(deliveries).where(or(...conditions));
+}
+
+// ============ LOGIN USER OPERATIONS ============
+
+export async function createLoginUser(username: string, password: string): Promise<LoginUser> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  
+  const result = await db.insert(loginUsers).values({
+    username,
+    password: hashedPassword,
+  });
+  
+  const userId = Number(result[0].insertId);
+  const created = await db.select().from(loginUsers).where(eq(loginUsers.id, userId)).limit(1);
+  return created[0];
+}
+
+export async function getLoginUserByUsername(username: string): Promise<LoginUser | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db.select().from(loginUsers)
+    .where(eq(loginUsers.username, username))
+    .limit(1);
+  
+  return result[0];
+}
+
+export async function verifyPassword(plainPassword: string, hashedPassword: string): Promise<boolean> {
+  return bcrypt.compare(plainPassword, hashedPassword);
+}
+
+export async function initializeDefaultUser(): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  const existing = await getLoginUserByUsername("grupotmc");
+  if (!existing) {
+    await createLoginUser("grupotmc", "123456");
+    console.log("[Database] Default user 'grupotmc' created");
+  }
 }

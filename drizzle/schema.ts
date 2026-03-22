@@ -83,3 +83,18 @@ export const deliveryMovements = mysqlTable("deliveryMovements", {
 
 export type DeliveryMovement = typeof deliveryMovements.$inferSelect;
 export type InsertDeliveryMovement = typeof deliveryMovements.$inferInsert;
+
+/**
+ * Simple login users table for app authentication
+ * No role-based access, just username and password
+ */
+export const loginUsers = mysqlTable("loginUsers", {
+  id: int("id").autoincrement().primaryKey(),
+  username: varchar("username", { length: 100 }).notNull().unique(),
+  password: text("password").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type LoginUser = typeof loginUsers.$inferSelect;
+export type InsertLoginUser = typeof loginUsers.$inferInsert;

@@ -65,3 +65,26 @@
 - [x] Entregue: Verde (#10B981)
 - [x] Retornado: Vermelho (#EF4444)
 - [x] Aplicar cores em badges, linhas de tabela e cards
+
+## Sistema de Login e Cadastro
+
+### Banco de Dados
+- [x] Criar tabela de usuários simples (username, password, createdAt)
+- [x] Adicionar usuário padrão (grupotmc/123456)
+
+### Backend (APIs)
+- [x] Implementar API de login com validação de credenciais
+- [x] Implementar API de cadastro de novo usuário
+- [x] Implementar API de logout
+- [x] Criar middleware de autenticação
+
+### Frontend
+- [x] Criar página de Login
+- [x] Criar página de Cadastro
+- [x] Implementar redirecionamento para login se não autenticado
+- [x] Adicionar botão de logout no Dashboard
+
+### Segurança
+- [x] Hash de senhas com bcrypt
+- [x] Sessão com localStorage
+- [x] Proteção de rotas privadas

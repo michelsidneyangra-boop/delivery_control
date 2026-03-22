@@ -19,6 +19,60 @@ export const appRouter = router({
     }),
   }),
 
+  // ============ LOGIN ROUTER ============
+  login: router({
+    register: publicProcedure
+      .input(z.object({
+        username: z.string().min(3),
+        password: z.string().min(6),
+      }))
+      .mutation(async ({ input }) => {
+        const existing = await db.getLoginUserByUsername(input.username);
+        if (existing) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Username já existe",
+          });
+        }
+
+        const user = await db.createLoginUser(input.username, input.password);
+        return {
+          id: user.id,
+          username: user.username,
+          createdAt: user.createdAt,
+        };
+      }),
+
+    authenticate: publicProcedure
+      .input(z.object({
+        username: z.string(),
+        password: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const user = await db.getLoginUserByUsername(input.username);
+        if (!user) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Username ou senha inválidos",
+          });
+        }
+
+        const isValid = await db.verifyPassword(input.password, user.password);
+        if (!isValid) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "Username ou senha inválidos",
+          });
+        }
+
+        return {
+          id: user.id,
+          username: user.username,
+          createdAt: user.createdAt,
+        };
+      }),
+  }),
+
   // ============ DRIVERS ROUTER ============
   drivers: router({
     list: protectedProcedure
