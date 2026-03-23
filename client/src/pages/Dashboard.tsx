@@ -20,8 +20,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Package, Truck, CheckCircle, AlertCircle } from "lucide-react";
+import { Package, Truck, CheckCircle, AlertCircle, Edit, Trash2, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const statusConfig = {
   pending: { label: "Pendente", icon: AlertCircle, color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
@@ -47,6 +56,33 @@ export default function Dashboard() {
   });
 
   const { data: summary } = trpc.dashboard.summary.useQuery();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedDeliveryId, setSelectedDeliveryId] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const deleteMutation = trpc.deliveries.delete.useMutation();
+  const utils = trpc.useUtils();
+
+  const handleDeleteClick = (id: number) => {
+    setSelectedDeliveryId(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedDeliveryId) return;
+    setIsDeleting(true);
+    try {
+      await deleteMutation.mutateAsync(selectedDeliveryId);
+      await utils.deliveries.list.invalidate();
+      await utils.dashboard.summary.invalidate();
+      setDeleteDialogOpen(false);
+      setSelectedDeliveryId(null);
+    } catch (error: any) {
+      console.error("Erro ao deletar:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const neighborhoods = useMemo(() => {
     if (!deliveries) return [];
@@ -216,13 +252,31 @@ export default function Dashboard() {
                             {new Date(delivery.entryDate).toLocaleDateString("pt-BR")}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setLocation(`/delivery/${delivery.id}`)}
-                            >
-                              Ver
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setLocation(`/delivery/${delivery.id}`)}
+                              >
+                                Ver
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setLocation(`/edit-delivery/${delivery.id}`)}
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteClick(delivery.id)}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -238,6 +292,35 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja excluir esta entrega? Esta ação não pode ser desfeita.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="flex gap-2 justify-end">
+              <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deletando...
+                  </>
+                ) : (
+                  "Deletar"
+                )}
+              </AlertDialogAction>
+            </div>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

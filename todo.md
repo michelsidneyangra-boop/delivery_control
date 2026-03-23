@@ -88,3 +88,18 @@
 - [x] Hash de senhas com bcrypt
 - [x] Sessão com localStorage
 - [x] Proteção de rotas privadas
+
+
+## Edição e Exclusão de Entregas
+
+### Backend (APIs)
+- [x] Implementar API de atualização de entrega (update)
+- [x] Implementar API de exclusão de entrega (delete)
+- [x] Validar permissões e dados antes de atualizar/deletar
+
+### Frontend
+- [x] Criar página de edição de entrega (EditDelivery.tsx)
+- [x] Adicionar botões de ação (Editar/Excluir) na tabela do Dashboard
+- [x] Implementar diálogo de confirmação para exclusão
+- [x] Redirecionar para edição quando clicar em "Editar"
+- [x] Atualizar lista após edição/exclusão com invalidate
