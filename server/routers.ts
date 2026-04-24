@@ -228,6 +228,26 @@ export const appRouter = router({
         await db.deleteDelivery(input);
         return { success: true };
       }),
+
+    updateStatus: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        status: z.enum(["pending", "in_transit", "delivered", "returned"]),
+      }))
+      .mutation(async ({ input }) => {
+        const delivery = await db.getDeliveryById(input.id);
+        if (!delivery) throw new TRPCError({ code: "NOT_FOUND" });
+        
+        await db.updateDelivery(input.id, { status: input.status });
+        
+        await db.createDeliveryMovement({
+          deliveryId: input.id,
+          movementType: input.status === "delivered" ? "return" : input.status === "in_transit" ? "exit" : "return",
+          movementDate: new Date(),
+        });
+        
+        return { success: true };
+      }),
   }),
 
   // ============ DELIVERY MOVEMENTS ROUTER ============

@@ -12,6 +12,7 @@ import EditDelivery from "./pages/EditDelivery";
 import DeliveryDetail from "./pages/DeliveryDetail";
 import Drivers from "./pages/Drivers";
 import NewDriver from "./pages/NewDriver";
+import EditDriver from "./pages/EditDriver";
 import Login from "./pages/Login";
 
 function Router() {
@@ -47,6 +48,7 @@ function Router() {
           <Route path="/delivery/:id" component={DeliveryDetail} />
           <Route path="/drivers" component={Drivers} />
           <Route path="/new-driver" component={NewDriver} />
+          <Route path="/edit-driver/:id" component={EditDriver} />
         </>
       ) : null}
       <Route path="/404" component={NotFound} />

@@ -40,6 +40,24 @@ export default function DeliveryDetail() {
 
   const registerExit = trpc.movements.registerExit.useMutation();
   const registerReturn = trpc.movements.registerReturn.useMutation();
+  const updateStatus = trpc.deliveries.updateStatus.useMutation();
+  const utils = trpc.useUtils();
+
+  const handleUpdateStatus = async (newStatus: string) => {
+    try {
+      await updateStatus.mutateAsync({
+        id: deliveryId!,
+        status: newStatus as any,
+      });
+      if (deliveryId) {
+        await utils.deliveries.getById.invalidate(deliveryId);
+        await utils.movements.getByDelivery.invalidate(deliveryId);
+      }
+      toast.success("Status atualizado com sucesso!");
+    } catch (error: any) {
+      toast.error(error.message || "Erro ao atualizar status");
+    }
+  };
 
   const handleRegisterExit = async () => {
     if (!selectedDriver) {
@@ -141,9 +159,20 @@ export default function DeliveryDetail() {
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Status</Label>
-                    <Badge className="mt-1">
-                      {statusLabels[delivery.status as keyof typeof statusLabels]}
-                    </Badge>
+                    <Select value={delivery.status} onValueChange={handleUpdateStatus}>
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pending">Pendente</SelectItem>
+                        <SelectItem value="in_transit">Em Trânsito</SelectItem>
+                        <SelectItem value="delivered">Entregue</SelectItem>
+                        {delivery.status === "returned" && (
+                          <SelectItem value="in_transit">Sair Novamente</SelectItem>
+                        )}
+                        <SelectItem value="returned">Retornado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

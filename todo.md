@@ -119,3 +119,18 @@
 - [x] Adicionar botão "Novo Motorista" na página de motoristas
 - [x] Validar campos obrigatórios (nome, telefone)
 - [x] Atualizar lista de motoristas após cadastro
+
+
+## Lógica de Status e Gerenciamento de Motoristas
+
+### Lógica de Status Avançada
+- [x] Permitir mudança de Retornado para Em Trânsito para nova entrega
+- [x] Apenas finalizar quando status for Entregue
+- [x] Validar transições de status permitidas
+
+### Gerenciamento de Motoristas
+- [x] Implementar API de edição de motorista (update)
+- [x] Implementar API de exclusão de motorista (delete) - já existe
+- [x] Criar página de edição de motorista (EditDriver.tsx)
+- [x] Adicionar botões de editar e excluir na tabela de motoristas
+- [x] Implementar diálogo de confirmação para exclusão
