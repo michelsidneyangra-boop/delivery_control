@@ -8,6 +8,9 @@ import {
   deliveries,
   deliveryMovements,
   loginUsers,
+  whatsappConfig,
+  whatsappTemplates,
+  whatsappMessages,
   type Driver,
   type Delivery,
   type DeliveryMovement,
@@ -15,7 +18,10 @@ import {
   type InsertDelivery,
   type InsertDeliveryMovement,
   type LoginUser,
-  type InsertLoginUser
+  type InsertLoginUser,
+  type WhatsappConfig,
+  type WhatsappTemplate,
+  type WhatsappMessage
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -389,4 +395,129 @@ export async function initializeDefaultUser(): Promise<void> {
     await createLoginUser("grupotmc", "123456");
     console.log("[Database] Default user 'grupotmc' created");
   }
+}
+
+
+// WhatsApp Configuration Helpers
+export async function getWhatsappConfig() {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(whatsappConfig).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function upsertWhatsappConfig(data: {
+  storeNumber: string;
+  phoneNumber: string;
+  isConnected: boolean;
+  lastChecked?: Date;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const existing = await db.select().from(whatsappConfig).where(eq(whatsappConfig.storeNumber, data.storeNumber)).limit(1);
+  
+  if (existing.length > 0) {
+    await db.update(whatsappConfig)
+      .set({
+        phoneNumber: data.phoneNumber,
+        isConnected: data.isConnected,
+        lastChecked: data.lastChecked || new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(whatsappConfig.storeNumber, data.storeNumber));
+  } else {
+    await db.insert(whatsappConfig).values({
+      storeNumber: data.storeNumber,
+      phoneNumber: data.phoneNumber,
+      isConnected: data.isConnected,
+      lastChecked: data.lastChecked || new Date(),
+    });
+  }
+  
+  return getWhatsappConfig();
+}
+
+// WhatsApp Templates Helpers
+export async function getWhatsappTemplates() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(whatsappTemplates);
+}
+
+export async function getWhatsappTemplate(status: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(whatsappTemplates)
+    .where(eq(whatsappTemplates.status, status as any))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updateWhatsappTemplate(status: string, template: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const existing = await getWhatsappTemplate(status);
+  
+  if (existing) {
+    await db.update(whatsappTemplates)
+      .set({ template, updatedAt: new Date() })
+      .where(eq(whatsappTemplates.status, status as any));
+  } else {
+    await db.insert(whatsappTemplates).values({
+      status: status as any,
+      template,
+    });
+  }
+  
+  return getWhatsappTemplate(status);
+}
+
+// WhatsApp Messages Helpers
+export async function createWhatsappMessage(data: {
+  deliveryId: number;
+  phoneNumber: string;
+  messageType: string;
+  message: string;
+  status?: string;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(whatsappMessages).values({
+    deliveryId: data.deliveryId,
+    phoneNumber: data.phoneNumber,
+    messageType: data.messageType as any,
+    message: data.message,
+    status: (data.status || "pending") as any,
+  });
+  
+  return result;
+}
+
+export async function updateWhatsappMessageStatus(messageId: number, status: string, sentAt?: Date, errorMessage?: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  await db.update(whatsappMessages)
+    .set({
+      status: status as any,
+      sentAt: sentAt || new Date(),
+      errorMessage: errorMessage || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(whatsappMessages.id, messageId));
+}
+
+export async function getWhatsappMessages(deliveryId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(whatsappMessages)
+    .where(eq(whatsappMessages.deliveryId, deliveryId));
 }

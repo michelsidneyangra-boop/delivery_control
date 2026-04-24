@@ -98,3 +98,52 @@ export const loginUsers = mysqlTable("loginUsers", {
 
 export type LoginUser = typeof loginUsers.$inferSelect;
 export type InsertLoginUser = typeof loginUsers.$inferInsert;
+
+/**
+ * WhatsApp configuration table for storing store number and connection status
+ */
+export const whatsappConfig = mysqlTable("whatsappConfig", {
+  id: int("id").autoincrement().primaryKey(),
+  storeNumber: varchar("storeNumber", { length: 20 }).notNull().unique(),
+  phoneNumber: varchar("phoneNumber", { length: 20 }).notNull(),
+  isConnected: boolean("isConnected").default(false).notNull(),
+  lastChecked: timestamp("lastChecked"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WhatsappConfig = typeof whatsappConfig.$inferSelect;
+export type InsertWhatsappConfig = typeof whatsappConfig.$inferInsert;
+
+/**
+ * WhatsApp message templates for each delivery status
+ */
+export const whatsappTemplates = mysqlTable("whatsappTemplates", {
+  id: int("id").autoincrement().primaryKey(),
+  status: mysqlEnum("status", ["pending", "in_transit", "delivered", "returned", "satisfaction"]).notNull(),
+  template: text("template").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WhatsappTemplate = typeof whatsappTemplates.$inferSelect;
+export type InsertWhatsappTemplate = typeof whatsappTemplates.$inferInsert;
+
+/**
+ * WhatsApp message history for tracking sent messages
+ */
+export const whatsappMessages = mysqlTable("whatsappMessages", {
+  id: int("id").autoincrement().primaryKey(),
+  deliveryId: int("deliveryId").notNull(),
+  phoneNumber: varchar("phoneNumber", { length: 20 }).notNull(),
+  messageType: mysqlEnum("messageType", ["pending", "in_transit", "delivered", "returned", "satisfaction"]).notNull(),
+  message: text("message").notNull(),
+  status: mysqlEnum("status", ["sent", "failed", "pending"]).default("pending").notNull(),
+  sentAt: timestamp("sentAt"),
+  errorMessage: text("errorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
+export type InsertWhatsappMessage = typeof whatsappMessages.$inferInsert;

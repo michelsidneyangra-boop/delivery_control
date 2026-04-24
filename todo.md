@@ -134,3 +134,43 @@
 - [x] Criar página de edição de motorista (EditDriver.tsx)
 - [x] Adicionar botões de editar e excluir na tabela de motoristas
 - [x] Implementar diálogo de confirmação para exclusão
+
+
+## Integração com WhatsApp
+
+### Banco de Dados
+- [ ] Criar tabela whatsapp_config para armazenar número, token, status de conexão
+- [ ] Criar tabela whatsapp_templates para armazenar mensagens de cada status
+- [ ] Criar tabela whatsapp_messages para registrar histórico de mensagens enviadas
+
+### Backend (APIs)
+- [ ] Implementar API para login do WhatsApp (conectar número da loja)
+- [ ] Implementar API para logout do WhatsApp
+- [ ] Implementar API para verificar conectividade do WhatsApp
+- [ ] Implementar API para enviar mensagem via WhatsApp
+- [ ] Implementar API para atualizar templates de mensagens
+- [ ] Integrar envio automático ao mudar status de entrega
+- [ ] Implementar envio de pesquisa de satisfação ao finalizar entrega
+
+### Frontend
+- [ ] Criar página de configuração do WhatsApp
+- [ ] Adicionar formulário de login do número do WhatsApp
+- [ ] Exibir status de conectividade (conectado/desconectado)
+- [ ] Adicionar botão para desconectar/trocar número
+- [ ] Criar interface para editar templates de mensagens
+- [ ] Mostrar histórico de mensagens enviadas
+- [ ] Adicionar indicador de status no sidebar/header
+
+### Mensagens Automáticas
+- [ ] Mensagem para status "Pendente"
+- [ ] Mensagem para status "Em Trânsito"
+- [ ] Mensagem para status "Entregue"
+- [ ] Mensagem para status "Retornado"
+- [ ] Pesquisa de satisfação ao finalizar entrega
+- [ ] Personalizar mensagens com dados da entrega (N.Nota, motorista, etc)
+
+### Segurança
+- [ ] Armazenar token do WhatsApp de forma segura
+- [ ] Validar número de telefone antes de enviar
+- [ ] Registrar tentativas de envio com sucesso/falha
+- [ ] Implementar rate limiting para evitar spam
