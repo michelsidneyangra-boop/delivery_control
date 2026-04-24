@@ -23,8 +23,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Truck, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { useLocation } from "wouter";
 
 export default function Drivers() {
+  const [, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
@@ -76,9 +78,16 @@ export default function Drivers() {
             <h1 className="text-3xl font-bold text-foreground">Motoristas</h1>
             <p className="text-muted-foreground">Gestão de motoristas do sistema</p>
           </div>
-          <Dialog open={isOpen} onOpenChange={setIsOpen}>
+          <Button 
+            className="bg-primary"
+            onClick={() => setLocation("/new-driver")}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Novo Motorista
+          </Button>
+          <Dialog open={false} onOpenChange={() => {}}>
             <DialogTrigger asChild>
-              <Button className="bg-primary">
+              <Button className="bg-primary" style={{display: "none"}}>
                 <Plus className="w-4 h-4 mr-2" />
                 Novo Motorista
               </Button>

@@ -103,3 +103,19 @@
 - [x] Implementar diálogo de confirmação para exclusão
 - [x] Redirecionar para edição quando clicar em "Editar"
 - [x] Atualizar lista após edição/exclusão com invalidate
+
+
+## Edição de Status e Cadastro de Motorista
+
+### Edição de Status
+- [x] Implementar API para atualizar status de entrega
+- [x] Adicionar dropdown de status na página de detalhes da entrega
+- [x] Permitir mudança de status: Pendente → Em Trânsito → Entregue/Retornado
+- [x] Registrar movimentação ao alterar status
+
+### Cadastro de Motorista
+- [x] Implementar API de cadastro de motorista
+- [x] Criar formulário de cadastro de motorista (NewDriver.tsx)
+- [x] Adicionar botão "Novo Motorista" na página de motoristas
+- [x] Validar campos obrigatórios (nome, telefone)
+- [x] Atualizar lista de motoristas após cadastro
