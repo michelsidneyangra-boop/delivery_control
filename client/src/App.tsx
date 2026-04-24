@@ -13,6 +13,7 @@ import DeliveryDetail from "./pages/DeliveryDetail";
 import Drivers from "./pages/Drivers";
 import NewDriver from "./pages/NewDriver";
 import EditDriver from "./pages/EditDriver";
+import WhatsAppConfig from "./pages/WhatsAppConfig";
 import Login from "./pages/Login";
 
 function Router() {
@@ -44,11 +45,12 @@ function Router() {
           <Route path="/" component={Home} />
           <Route path="/dashboard" component={Dashboard} />
           <Route path="/new-delivery" component={NewDelivery} />
-          <Route path="/edit-delivery/:id" component={EditDelivery} />
           <Route path="/delivery/:id" component={DeliveryDetail} />
+          <Route path="/edit-delivery/:id" component={EditDelivery} />
           <Route path="/drivers" component={Drivers} />
           <Route path="/new-driver" component={NewDriver} />
           <Route path="/edit-driver/:id" component={EditDriver} />
+          <Route path="/whatsapp-config" component={WhatsAppConfig} />
         </>
       ) : null}
       <Route path="/404" component={NotFound} />

@@ -5,6 +5,7 @@ import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import { TRPCError } from "@trpc/server";
+import { whatsappRouter } from "./routers/whatsapp";
 
 export const appRouter = router({
   system: systemRouter,
@@ -340,7 +341,7 @@ export const appRouter = router({
         const allDeliveries = await db.getDeliveries();
         return allDeliveries.slice(0, limit);
       }),
-  }),
+   }),
+  whatsapp: whatsappRouter,
 });
-
 export type AppRouter = typeof appRouter;
