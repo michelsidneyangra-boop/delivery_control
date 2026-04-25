@@ -10,6 +10,9 @@ import {
 } from "../db";
 import { WhatsAppClient, interpolateTemplate } from "../whatsapp";
 
+// Global WhatsApp client instance
+let whatsappClient: WhatsAppClient | null = null;
+
 export const whatsappRouter = router({
   /**
    * Get current WhatsApp configuration
@@ -19,23 +22,23 @@ export const whatsappRouter = router({
   }),
 
   /**
-   * Login to WhatsApp with phone number and access token
+   * Login to WhatsApp Web (no credentials needed, just phone number)
    */
   login: publicProcedure
     .input(z.object({
       storeNumber: z.string().min(1, "Número da loja é obrigatório"),
       phoneNumber: z.string().min(10, "Número de telefone inválido"),
-      phoneNumberId: z.string().min(1, "Phone Number ID é obrigatório"),
-      accessToken: z.string().min(1, "Access Token é obrigatório"),
     }))
     .mutation(async ({ input }) => {
       try {
-        // Verify phone number connection
-        const client = new WhatsAppClient(input.phoneNumberId, input.accessToken);
-        const isConnected = await client.verifyPhoneNumber();
+        // Create new WhatsApp client
+        whatsappClient = new WhatsAppClient(input.phoneNumber);
+        
+        // Connect to WhatsApp Web
+        const isConnected = await whatsappClient.connect();
 
         if (!isConnected) {
-          throw new Error("Falha ao conectar com o número do WhatsApp. Verifique as credenciais.");
+          throw new Error("Falha ao conectar com WhatsApp Web. Por favor, escaneie o código QR.");
         }
 
         // Save configuration
@@ -46,14 +49,9 @@ export const whatsappRouter = router({
           lastChecked: new Date(),
         });
 
-        // Store credentials securely (in production, use environment variables or secure vault)
-        // For now, we'll store them in memory or database with encryption
-        process.env.WHATSAPP_PHONE_NUMBER_ID = input.phoneNumberId;
-        process.env.WHATSAPP_ACCESS_TOKEN = input.accessToken;
-
         return {
           success: true,
-          message: "WhatsApp conectado com sucesso!",
+          message: "WhatsApp Web conectado com sucesso!",
           config,
         };
       } catch (error) {
@@ -67,7 +65,7 @@ export const whatsappRouter = router({
     }),
 
   /**
-   * Logout from WhatsApp
+   * Logout from WhatsApp Web
    */
   logout: publicProcedure.mutation(async () => {
     try {
@@ -80,6 +78,12 @@ export const whatsappRouter = router({
         };
       }
 
+      // Disconnect client
+      if (whatsappClient) {
+        await whatsappClient.disconnect();
+        whatsappClient = null;
+      }
+
       // Update configuration to disconnected
       await upsertWhatsappConfig({
         storeNumber: config.storeNumber,
@@ -87,10 +91,6 @@ export const whatsappRouter = router({
         isConnected: false,
         lastChecked: new Date(),
       });
-
-      // Clear environment variables
-      delete process.env.WHATSAPP_PHONE_NUMBER_ID;
-      delete process.env.WHATSAPP_ACCESS_TOKEN;
 
       return {
         success: true,
@@ -101,6 +101,7 @@ export const whatsappRouter = router({
       return {
         success: false,
         message: errorMessage,
+        error: errorMessage,
       };
     }
   }),
@@ -108,44 +109,30 @@ export const whatsappRouter = router({
   /**
    * Verify WhatsApp connection status
    */
-  verifyConnection: publicProcedure.mutation(async () => {
+  verifyConnection: publicProcedure.query(async () => {
     try {
       const config = await getWhatsappConfig();
-
+      
       if (!config) {
         return {
           isConnected: false,
-          message: "WhatsApp não está configurado",
+          message: "Nenhuma configuração de WhatsApp encontrada",
         };
       }
 
-      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-      const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-
-      if (!phoneNumberId || !accessToken) {
+      // Check if client is still connected
+      if (whatsappClient && whatsappClient.isLoggedIn()) {
         return {
-          isConnected: false,
-          message: "Credenciais do WhatsApp não encontradas",
+          isConnected: true,
+          phoneNumber: config.phoneNumber,
+          message: "WhatsApp Web conectado",
         };
       }
-
-      // Verify connection
-      const client = new WhatsAppClient(phoneNumberId, accessToken);
-      const isConnected = await client.verifyPhoneNumber();
-
-      // Update last checked time
-      await upsertWhatsappConfig({
-        storeNumber: config.storeNumber,
-        phoneNumber: config.phoneNumber,
-        isConnected,
-        lastChecked: new Date(),
-      });
 
       return {
-        isConnected,
+        isConnected: false,
         phoneNumber: config.phoneNumber,
-        lastChecked: config.lastChecked,
-        message: isConnected ? "WhatsApp conectado" : "WhatsApp desconectado",
+        message: "WhatsApp Web desconectado. Por favor, faça login novamente.",
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erro ao verificar conexão";
@@ -157,78 +144,65 @@ export const whatsappRouter = router({
   }),
 
   /**
-   * Get all message templates
+   * Get all templates
    */
   getTemplates: publicProcedure.query(async () => {
     return await getWhatsappTemplates();
   }),
 
   /**
-   * Get template for specific status
+   * Get a specific template
    */
   getTemplate: publicProcedure
     .input(z.object({
-      status: z.enum(["pending", "in_transit", "delivered", "returned", "satisfaction"]),
+      status: z.string(),
     }))
     .query(async ({ input }) => {
       return await getWhatsappTemplate(input.status);
     }),
 
   /**
-   * Update message template
+   * Update a template
    */
   updateTemplate: publicProcedure
     .input(z.object({
-      status: z.enum(["pending", "in_transit", "delivered", "returned", "satisfaction"]),
-      template: z.string().min(10, "Template deve ter pelo menos 10 caracteres"),
+      status: z.string(),
+      template: z.string(),
     }))
     .mutation(async ({ input }) => {
-      try {
-        const result = await updateWhatsappTemplate(input.status, input.template);
-        return {
-          success: true,
-          message: "Template atualizado com sucesso!",
-          template: result,
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Erro ao atualizar template";
-        return {
-          success: false,
-          message: errorMessage,
-        };
-      }
+      return await updateWhatsappTemplate(input.status, input.template);
     }),
 
   /**
-   * Send test message
+   * Send a test message
    */
   sendTestMessage: publicProcedure
     .input(z.object({
-      phoneNumber: z.string().min(10, "Número de telefone inválido"),
-      message: z.string().min(1, "Mensagem é obrigatória"),
+      phoneNumber: z.string(),
+      message: z.string(),
     }))
     .mutation(async ({ input }) => {
       try {
-        const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-        const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-
-        if (!phoneNumberId || !accessToken) {
-          throw new Error("WhatsApp não está configurado");
+        if (!whatsappClient || !whatsappClient.isLoggedIn()) {
+          throw new Error("WhatsApp não está conectado. Por favor, faça login primeiro.");
         }
 
-        const client = new WhatsAppClient(phoneNumberId, accessToken);
-        const result = await client.sendTextMessage(input.phoneNumber, input.message);
+        const success = await whatsappClient.sendTextMessage(input.phoneNumber, input.message);
 
-        return {
-          success: true,
-          message: "Mensagem de teste enviada com sucesso!",
-          result,
-        };
+        if (success) {
+          return {
+            success: true,
+            message: "Mensagem de teste enviada com sucesso!",
+          };
+        } else {
+          throw new Error("Falha ao enviar mensagem");
+        }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Erro ao enviar mensagem";
         return {
           success: false,
           message: errorMessage,
+          error: errorMessage,
         };
       }
     }),
@@ -238,7 +212,7 @@ export const whatsappRouter = router({
    */
   getMessageHistory: publicProcedure
     .input(z.object({
-      deliveryId: z.number().int().positive(),
+      deliveryId: z.number(),
     }))
     .query(async ({ input }) => {
       return await getWhatsappMessages(input.deliveryId);

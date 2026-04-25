@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertCircle, CheckCircle, Loader2, MessageCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, Loader2, MessageCircle, QrCode } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -13,15 +13,14 @@ export default function WhatsAppConfig() {
   const [, setLocation] = useLocation();
   const [storeNumber, setStoreNumber] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [phoneNumberId, setPhoneNumberId] = useState("");
-  const [accessToken, setAccessToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [testPhoneNumber, setTestPhoneNumber] = useState("");
   const [testMessage, setTestMessage] = useState("Teste de mensagem do WhatsApp");
 
   // Queries
-  const { data: config } = trpc.whatsapp.getConfig.useQuery();
-  const { data: templates } = trpc.whatsapp.getTemplates.useQuery();
+  const { data: config, refetch: refetchConfig } = trpc.whatsapp.getConfig.useQuery();
+  const { data: templates, refetch: refetchTemplates } = trpc.whatsapp.getTemplates.useQuery();
+  const { data: connectionStatus } = trpc.whatsapp.verifyConnection.useQuery();
 
   // Mutations
   const loginMutation = trpc.whatsapp.login.useMutation();
@@ -31,8 +30,8 @@ export default function WhatsAppConfig() {
   const sendTestMutation = trpc.whatsapp.sendTestMessage.useMutation();
 
   const handleLogin = async () => {
-    if (!storeNumber || !phoneNumber || !phoneNumberId || !accessToken) {
-      toast.error("Preencha todos os campos obrigatórios");
+    if (!storeNumber || !phoneNumber) {
+      toast.error("Preencha o número da loja e seu número de WhatsApp");
       return;
     }
 
@@ -41,21 +40,19 @@ export default function WhatsAppConfig() {
       const result = await loginMutation.mutateAsync({
         storeNumber,
         phoneNumber,
-        phoneNumberId,
-        accessToken,
       });
 
       if (result.success) {
         toast.success(result.message);
+        toast.info("Por favor, escaneie o código QR que aparecerá em uma nova janela");
         setStoreNumber("");
         setPhoneNumber("");
-        setPhoneNumberId("");
-        setAccessToken("");
+        refetchConfig();
       } else {
         toast.error(result.message);
       }
     } catch (error) {
-      toast.error("Erro ao conectar com WhatsApp");
+      toast.error("Erro ao conectar com WhatsApp Web");
     } finally {
       setIsLoading(false);
     }
@@ -67,6 +64,7 @@ export default function WhatsAppConfig() {
       const result = await logoutMutation.mutateAsync();
       if (result.success) {
         toast.success(result.message);
+        refetchConfig();
       } else {
         toast.error(result.message);
       }
@@ -108,6 +106,8 @@ export default function WhatsAppConfig() {
 
       if (result.success) {
         toast.success(result.message);
+        setTestPhoneNumber("");
+        setTestMessage("Teste de mensagem do WhatsApp");
       } else {
         toast.error(result.message);
       }
@@ -118,297 +118,270 @@ export default function WhatsAppConfig() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <MessageCircle className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-slate-900">Configuração WhatsApp</h1>
-          </div>
-          <Button variant="outline" onClick={() => setLocation("/dashboard")}>
-            Voltar
-          </Button>
-        </div>
-
-        {/* Status Card */}
-        <Card className={config?.isConnected ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {config?.isConnected ? (
-                  <>
-                    <CheckCircle className="w-6 h-6 text-green-600" />
-                    <div>
-                      <p className="font-semibold text-green-900">WhatsApp Conectado</p>
-                      <p className="text-sm text-green-700">{config?.phoneNumber}</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="w-6 h-6 text-red-600" />
-                    <div>
-                      <p className="font-semibold text-red-900">WhatsApp Desconectado</p>
-                      <p className="text-sm text-red-700">Configure suas credenciais para começar</p>
-                    </div>
-                  </>
-                )}
-              </div>
-              {config?.isConnected && (
-                <Button
-                  variant="destructive"
-                  onClick={handleLogout}
-                  disabled={isLoading}
-                >
-                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Desconectar
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Tabs */}
-        <Tabs defaultValue="login" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="login">Login</TabsTrigger>
-            <TabsTrigger value="templates">Templates</TabsTrigger>
-            <TabsTrigger value="test">Teste</TabsTrigger>
-          </TabsList>
-
-          {/* Login Tab */}
-          <TabsContent value="login">
-            <Card>
-              <CardHeader>
-                <CardTitle>Conectar WhatsApp Business API</CardTitle>
-                <CardDescription>
-                  Insira suas credenciais da WhatsApp Business API do Meta
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Número da Loja
-                  </label>
-                  <Input
-                    placeholder="Ex: 1"
-                    value={storeNumber}
-                    onChange={(e) => setStoreNumber(e.target.value)}
-                    disabled={config?.isConnected}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Número do WhatsApp
-                  </label>
-                  <Input
-                    placeholder="Ex: 5511999999999"
-                    value={phoneNumber}
-                    onChange={(e) => setPhoneNumber(e.target.value)}
-                    disabled={config?.isConnected}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Phone Number ID
-                  </label>
-                  <Input
-                    placeholder="ID do número de telefone do Meta"
-                    value={phoneNumberId}
-                    onChange={(e) => setPhoneNumberId(e.target.value)}
-                    disabled={config?.isConnected}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Access Token
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="Token de acesso do Meta"
-                    value={accessToken}
-                    onChange={(e) => setAccessToken(e.target.value)}
-                    disabled={config?.isConnected}
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <Button
-                    onClick={handleLogin}
-                    disabled={isLoading || config?.isConnected}
-                    className="flex-1"
-                  >
-                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                    Conectar
-                  </Button>
-                  {config?.isConnected && (
-                    <Button
-                      variant="outline"
-                      onClick={handleVerifyConnection}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                      Verificar
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Templates Tab */}
-          <TabsContent value="templates">
-            <Card>
-              <CardHeader>
-                <CardTitle>Templates de Mensagens</CardTitle>
-                <CardDescription>
-                  Customize as mensagens para cada status de entrega
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {templates?.map((template) => (
-                  <TemplateEditor
-                    key={template.id}
-                    template={template}
-                    onUpdate={updateTemplateMutation.mutateAsync}
-                  />
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Test Tab */}
-          <TabsContent value="test">
-            <Card>
-              <CardHeader>
-                <CardTitle>Enviar Mensagem de Teste</CardTitle>
-                <CardDescription>
-                  Teste a conexão enviando uma mensagem de teste
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Número de Telefone
-                  </label>
-                  <Input
-                    placeholder="Ex: 5511999999999"
-                    value={testPhoneNumber}
-                    onChange={(e) => setTestPhoneNumber(e.target.value)}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
-                    Mensagem
-                  </label>
-                  <Textarea
-                    placeholder="Digite a mensagem de teste"
-                    value={testMessage}
-                    onChange={(e) => setTestMessage(e.target.value)}
-                    rows={4}
-                  />
-                </div>
-
-                <Button
-                  onClick={handleSendTest}
-                  disabled={isLoading || !config?.isConnected}
-                  className="w-full"
-                >
-                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  Enviar Teste
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
-  );
-}
-
-function TemplateEditor({ template, onUpdate }: any) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [content, setContent] = useState(template.template);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async () => {
-    setIsSaving(true);
+  const handleUpdateTemplate = async (status: string, template: string) => {
+    setIsLoading(true);
     try {
-      await onUpdate({
-        status: template.status,
-        template: content,
+      await updateTemplateMutation.mutateAsync({
+        status,
+        template,
       });
       toast.success("Template atualizado com sucesso!");
-      setIsEditing(false);
+      refetchTemplates();
     } catch (error) {
       toast.error("Erro ao atualizar template");
     } finally {
-      setIsSaving(false);
+      setIsLoading(false);
     }
   };
 
-  const statusLabels: Record<string, string> = {
-    pending: "Pendente",
-    in_transit: "Em Trânsito",
-    delivered: "Entregue",
-    returned: "Retornado",
-    satisfaction: "Pesquisa de Satisfação",
-  };
+  const isConnected = connectionStatus?.isConnected ?? config?.isConnected ?? false;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">{statusLabels[template.status]}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {isEditing ? (
-          <>
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={5}
-              className="font-mono text-sm"
-            />
-            <div className="flex gap-2">
-              <Button
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex-1"
-              >
-                {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Salvar
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setContent(template.template);
-                  setIsEditing(false);
-                }}
-                disabled={isSaving}
-                className="flex-1"
-              >
-                Cancelar
-              </Button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Configuração WhatsApp Web</h1>
+          <p className="text-muted-foreground mt-2">
+            Configure o WhatsApp Web para enviar mensagens automáticas de status de entregas
+          </p>
+        </div>
+      </div>
+
+      {/* Status Card */}
+      <Card className={isConnected ? "border-green-200 bg-green-50 dark:bg-green-950/20" : "border-red-200 bg-red-50 dark:bg-red-950/20"}>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {isConnected ? (
+                <>
+                  <CheckCircle className="w-6 h-6 text-green-600" />
+                  <div>
+                    <p className="font-semibold text-green-900 dark:text-green-300">Conectado</p>
+                    <p className="text-sm text-green-800 dark:text-green-400">
+                      {config?.phoneNumber} - {config?.storeNumber}
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-6 h-6 text-red-600" />
+                  <div>
+                    <p className="font-semibold text-red-900 dark:text-red-300">Desconectado</p>
+                    <p className="text-sm text-red-800 dark:text-red-400">
+                      Nenhuma configuração de WhatsApp Web encontrada
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
-          </>
-        ) : (
-          <>
-            <p className="text-sm text-slate-600 whitespace-pre-wrap">{template.template}</p>
-            <Button
-              variant="outline"
-              onClick={() => setIsEditing(true)}
-              className="w-full"
-            >
-              Editar
-            </Button>
-          </>
-        )}
-      </CardContent>
-    </Card>
+            {isConnected && (
+              <Button
+                variant="destructive"
+                onClick={handleLogout}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Desconectando...
+                  </>
+                ) : (
+                  "Desconectar"
+                )}
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue="login" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="login">Login</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="test">Teste</TabsTrigger>
+        </TabsList>
+
+        {/* Login Tab */}
+        <TabsContent value="login" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <QrCode className="w-5 h-5" />
+                Conectar WhatsApp Web
+              </CardTitle>
+              <CardDescription>
+                Faça login com seu número de WhatsApp. Um código QR será exibido para você escanear.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!isConnected ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Número da Loja</label>
+                    <Input
+                      placeholder="Ex: Loja Centro"
+                      value={storeNumber}
+                      onChange={(e) => setStoreNumber(e.target.value)}
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Seu Número de WhatsApp</label>
+                    <Input
+                      placeholder="Ex: +55 11 99999-9999"
+                      value={phoneNumber}
+                      onChange={(e) => setPhoneNumber(e.target.value)}
+                      disabled={isLoading}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use o formato internacional com código do país
+                    </p>
+                  </div>
+
+                  <Button
+                    onClick={handleLogin}
+                    disabled={isLoading}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Conectando...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Conectar WhatsApp Web
+                      </>
+                    )}
+                  </Button>
+
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-900 dark:text-blue-300">
+                      <strong>ℹ️ Como funciona:</strong><br />
+                      1. Clique em "Conectar WhatsApp Web"<br />
+                      2. Uma janela do navegador será aberta<br />
+                      3. Escaneie o código QR com seu celular<br />
+                      4. Pronto! Você poderá enviar mensagens
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <p className="text-sm text-green-900 dark:text-green-300">
+                    ✅ WhatsApp Web está conectado e pronto para enviar mensagens!
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Templates Tab */}
+        <TabsContent value="templates" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Templates de Mensagens</CardTitle>
+              <CardDescription>
+                Customize as mensagens automáticas para cada status de entrega
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {templates?.map((template: any) => (
+                <div key={template.status} className="space-y-2 pb-6 border-b last:border-b-0">
+                  <label className="text-sm font-medium text-foreground capitalize">
+                    Status: {template.status}
+                  </label>
+                  <Textarea
+                    placeholder="Digite o template de mensagem"
+                    defaultValue={template.template}
+                    onChange={(e) => {
+                      // Update on blur or button click
+                    }}
+                    className="min-h-24"
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use &#123;&#123;variável&#125;&#125; para inserir dados dinâmicos
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => handleUpdateTemplate(template.status, (e.target as any).previousElementSibling?.value || template.template)}
+                    disabled={isLoading}
+                  >
+                    Salvar Template
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Test Tab */}
+        <TabsContent value="test" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Enviar Mensagem de Teste</CardTitle>
+              <CardDescription>
+                Teste o envio de mensagens antes de usar em produção
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {isConnected ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Número de Telefone (destinatário)
+                    </label>
+                    <Input
+                      placeholder="Ex: +55 11 99999-9999"
+                      value={testPhoneNumber}
+                      onChange={(e) => setTestPhoneNumber(e.target.value)}
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Mensagem</label>
+                    <Textarea
+                      placeholder="Digite a mensagem de teste"
+                      value={testMessage}
+                      onChange={(e) => setTestMessage(e.target.value)}
+                      disabled={isLoading}
+                      className="min-h-24"
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleSendTest}
+                    disabled={isLoading}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Enviar Mensagem de Teste
+                      </>
+                    )}
+                  </Button>
+                </>
+              ) : (
+                <div className="p-4 bg-yellow-50 dark:bg-yellow-950/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                  <p className="text-sm text-yellow-900 dark:text-yellow-300">
+                    ⚠️ Conecte o WhatsApp Web primeiro para enviar mensagens de teste
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

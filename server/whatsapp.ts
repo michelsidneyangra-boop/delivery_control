@@ -1,75 +1,128 @@
 /**
- * WhatsApp Business API Integration (Meta)
- * Handles sending messages via WhatsApp Business API
+ * WhatsApp Web Integration (Puppeteer)
+ * Handles sending messages via WhatsApp Web without requiring Meta API authorization
  */
 
-interface WhatsAppMessage {
-  messaging_product: "whatsapp";
-  to: string;
-  type: "template" | "text";
-  template?: {
-    name: string;
-    language: {
-      code: string;
-    };
-    parameters?: {
-      body: {
-        parameters: Array<{
-          type: "text";
-          text: string;
-        }>;
-      };
-    };
-  };
-  text?: {
-    preview_url: boolean;
-    body: string;
-  };
+import puppeteer, { Browser, Page } from "puppeteer";
+import * as fs from "fs";
+import * as path from "path";
+
+const SESSION_DIR = path.join(process.cwd(), "whatsapp-session");
+
+// Ensure session directory exists
+if (!fs.existsSync(SESSION_DIR)) {
+  fs.mkdirSync(SESSION_DIR, { recursive: true });
 }
 
 export class WhatsAppClient {
-  private phoneNumberId: string;
-  private accessToken: string;
-  private apiVersion: string = "v18.0";
-  private baseUrl: string = "https://graph.instagram.com";
+  private browser: Browser | null = null;
+  private page: Page | null = null;
+  private phoneNumber: string;
+  private isConnected: boolean = false;
 
-  constructor(phoneNumberId: string, accessToken: string) {
-    this.phoneNumberId = phoneNumberId;
-    this.accessToken = accessToken;
+  constructor(phoneNumber: string) {
+    this.phoneNumber = phoneNumber;
   }
 
   /**
-   * Send a text message via WhatsApp
+   * Initialize browser and connect to WhatsApp Web
    */
-  async sendTextMessage(toPhoneNumber: string, message: string): Promise<any> {
+  async connect(): Promise<boolean> {
     try {
-      const url = `${this.baseUrl}/${this.apiVersion}/${this.phoneNumberId}/messages`;
-      
-      const payload: WhatsAppMessage = {
-        messaging_product: "whatsapp",
-        to: toPhoneNumber.replace(/\D/g, ""),
-        type: "text",
-        text: {
-          preview_url: false,
-          body: message,
-        },
-      };
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.accessToken}`,
-        },
-        body: JSON.stringify(payload),
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--single-process",
+        ],
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`WhatsApp API Error: ${error.error?.message || "Unknown error"}`);
+      this.page = await this.browser.newPage();
+      await this.page.setViewport({ width: 1280, height: 720 });
+
+      // Load session if exists
+      const sessionPath = path.join(SESSION_DIR, `session-${this.phoneNumber}.json`);
+      if (fs.existsSync(sessionPath)) {
+        const cookies = JSON.parse(fs.readFileSync(sessionPath, "utf-8"));
+        await this.page.setCookie(...cookies);
       }
 
-      return await response.json();
+      // Navigate to WhatsApp Web
+      await this.page.goto("https://web.whatsapp.com", { waitUntil: "networkidle2" });
+
+      // Wait for QR code or chat interface
+      const isLoggedIn = await this.checkLoginStatus();
+
+      if (!isLoggedIn) {
+        console.log("QR Code needed. Please scan it on the browser.");
+        // Wait for user to scan QR code (max 60 seconds)
+        await this.page.waitForSelector('[data-testid="chat-list-item"]', { timeout: 60000 }).catch(() => {});
+      }
+
+      // Save session cookies
+      const cookies = await this.page.cookies();
+      fs.writeFileSync(sessionPath, JSON.stringify(cookies, null, 2));
+
+      this.isConnected = true;
+      return true;
+    } catch (error) {
+      console.error("Error connecting to WhatsApp Web:", error);
+      this.isConnected = false;
+      return false;
+    }
+  }
+
+  /**
+   * Check if already logged in
+   */
+  private async checkLoginStatus(): Promise<boolean> {
+    try {
+      if (!this.page) return false;
+      
+      // Try to find chat list (indicates logged in)
+      const chatList = await this.page.$('[data-testid="chat-list-item"]');
+      return !!chatList;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Send a text message to a contact
+   */
+  async sendTextMessage(toPhoneNumber: string, message: string): Promise<boolean> {
+    try {
+      if (!this.page || !this.isConnected) {
+        throw new Error("WhatsApp not connected. Please login first.");
+      }
+
+      // Format phone number (remove non-digits)
+      const formattedNumber = toPhoneNumber.replace(/\D/g, "");
+
+      // Open chat with contact
+      const chatUrl = `https://web.whatsapp.com/send?phone=${formattedNumber}&text=${encodeURIComponent(message)}`;
+      await this.page.goto(chatUrl, { waitUntil: "networkidle2" });
+
+      // Wait for message input field
+      await this.page.waitForSelector('[data-testid="compose-box-input"]', { timeout: 10000 });
+
+      // Type message
+      const inputField = await this.page.$('[data-testid="compose-box-input"]');
+      if (inputField) {
+        await inputField.type(message);
+      }
+
+      // Send message (click send button or press Ctrl+Enter)
+      await this.page.keyboard.press("Enter");
+
+      // Wait a bit for message to be sent
+      await this.page.waitForTimeout(2000);
+
+      console.log(`Message sent to ${formattedNumber}`);
+      return true;
     } catch (error) {
       console.error("Error sending WhatsApp message:", error);
       throw error;
@@ -77,82 +130,35 @@ export class WhatsAppClient {
   }
 
   /**
-   * Send a template message via WhatsApp
+   * Send a template message (with variables)
    */
   async sendTemplateMessage(
     toPhoneNumber: string,
-    templateName: string,
-    parameters?: string[]
-  ): Promise<any> {
+    template: string,
+    variables: Record<string, string> = {}
+  ): Promise<boolean> {
     try {
-      const url = `${this.baseUrl}/${this.apiVersion}/${this.phoneNumberId}/messages`;
-      
-      const payload: WhatsAppMessage = {
-        messaging_product: "whatsapp",
-        to: toPhoneNumber.replace(/\D/g, ""),
-        type: "template",
-        template: {
-          name: templateName,
-          language: {
-            code: "pt_BR",
-          },
-          ...(parameters && {
-            parameters: {
-              body: {
-                parameters: parameters.map((param) => ({
-                  type: "text" as const,
-                  text: param,
-                })),
-              },
-            },
-          }),
-        },
-      };
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.accessToken}`,
-        },
-        body: JSON.stringify(payload),
+      // Interpolate variables in template
+      let message = template;
+      Object.entries(variables).forEach(([key, value]) => {
+        message = message.replace(`{{${key}}}`, value);
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`WhatsApp API Error: ${error.error?.message || "Unknown error"}`);
-      }
-
-      return await response.json();
+      return await this.sendTextMessage(toPhoneNumber, message);
     } catch (error) {
-      console.error("Error sending WhatsApp template message:", error);
+      console.error("Error sending template message:", error);
       throw error;
     }
   }
 
   /**
-   * Verify phone number connection to WhatsApp
+   * Verify phone number connection
    */
   async verifyPhoneNumber(): Promise<boolean> {
     try {
-      const url = `${this.baseUrl}/${this.apiVersion}/${this.phoneNumberId}`;
-      
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        console.error("Phone number verification failed");
-        return false;
-      }
-
-      const data = await response.json();
-      return data.verified_name !== undefined;
-    } catch (error) {
-      console.error("Error verifying phone number:", error);
+      if (!this.page) return false;
+      return await this.checkLoginStatus();
+    } catch {
       return false;
     }
   }
@@ -160,58 +166,42 @@ export class WhatsAppClient {
   /**
    * Get phone number details
    */
-  async getPhoneNumberDetails(): Promise<any> {
+  async getPhoneNumberDetails(): Promise<{ phoneNumber: string; isConnected: boolean }> {
+    return {
+      phoneNumber: this.phoneNumber,
+      isConnected: this.isConnected,
+    };
+  }
+
+  /**
+   * Disconnect and close browser
+   */
+  async disconnect(): Promise<void> {
     try {
-      const url = `${this.baseUrl}/${this.apiVersion}/${this.phoneNumberId}`;
-      
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to get phone number details");
+      if (this.browser) {
+        await this.browser.close();
       }
-
-      return await response.json();
+      this.isConnected = false;
     } catch (error) {
-      console.error("Error getting phone number details:", error);
-      throw error;
+      console.error("Error disconnecting:", error);
     }
+  }
+
+  /**
+   * Check if connected
+   */
+  isLoggedIn(): boolean {
+    return this.isConnected;
   }
 }
 
 /**
- * Default message templates for delivery statuses
+ * Interpolate template variables
  */
-export const DEFAULT_TEMPLATES = {
-  pending: `Olá {{clientName}},\n\nSua entrega foi recebida!\n\nNota Fiscal: {{noteNumber}}\nData de Entrada: {{entryDate}}\n\nEstaremos em breve enviando seu pedido.\n\nObrigado!`,
-  
-  in_transit: `Olá {{clientName}},\n\nSua entrega está a caminho!\n\nNota Fiscal: {{noteNumber}}\nMotorista: {{driverName}}\n\nEsperamos entregá-lo em breve.\n\nObrigado!`,
-  
-  delivered: `Olá {{clientName}},\n\nSua entrega foi realizada com sucesso!\n\nNota Fiscal: {{noteNumber}}\nData de Entrega: {{deliveryDate}}\n\nObrigado pela preferência!`,
-  
-  returned: `Olá {{clientName}},\n\nInfelizmente não conseguimos entregar seu pedido.\n\nNota Fiscal: {{noteNumber}}\n\nEntraremos em contato para agendar uma nova tentativa.\n\nObrigado!`,
-  
-  satisfaction: `Olá {{clientName}},\n\nComo foi sua experiência com nossa entrega?\n\nPor favor, responda:\n1️⃣ Excelente\n2️⃣ Bom\n3️⃣ Regular\n4️⃣ Ruim\n\nSua opinião é muito importante para nós!`,
-};
-
-/**
- * Replace template variables with actual values
- */
-export function interpolateTemplate(
-  template: string,
-  variables: Record<string, string | undefined>
-): string {
+export function interpolateTemplate(template: string, variables: Record<string, string> = {}): string {
   let result = template;
-  
   Object.entries(variables).forEach(([key, value]) => {
-    if (value) {
-      result = result.replace(new RegExp(`{{${key}}}`, "g"), value);
-    }
+    result = result.replace(`{{${key}}}`, value);
   });
-  
   return result;
 }
