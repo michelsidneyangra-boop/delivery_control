@@ -1,12 +1,11 @@
 /**
- * WhatsApp Web Integration (whatsapp-web.js)
+ * WhatsApp Web Integration (Puppeteer)
  * Handles sending messages via WhatsApp Web without requiring Meta API authorization
  */
 
-import type { Client as WhatsAppClientType } from "whatsapp-web.js";
-import fs from "fs";
-import path from "path";
-import * as qrcode from "qrcode";
+import puppeteer, { Browser, Page } from "puppeteer";
+import * as fs from "fs";
+import * as path from "path";
 
 const SESSION_DIR = path.join(process.cwd(), "whatsapp-session");
 
@@ -15,127 +14,80 @@ if (!fs.existsSync(SESSION_DIR)) {
   fs.mkdirSync(SESSION_DIR, { recursive: true });
 }
 
-// Lazy load whatsapp-web.js to avoid ESM issues
-let WhatsAppClientClass: any = null;
-let LocalAuthClass: any = null;
-
-async function loadWhatsAppClasses() {
-  if (!WhatsAppClientClass) {
-    const module = await import("whatsapp-web.js");
-    WhatsAppClientClass = module.Client;
-    LocalAuthClass = module.LocalAuth;
-  }
-}
-
 export class WhatsAppClient {
-  private client: WhatsAppClientType | null = null;
+  private browser: Browser | null = null;
+  private page: Page | null = null;
   private phoneNumber: string;
   private isConnected: boolean = false;
-  private qrCode: string | null = null;
-  private isScanning: boolean = false;
 
   constructor(phoneNumber: string) {
     this.phoneNumber = phoneNumber;
   }
 
   /**
-   * Initialize and connect to WhatsApp Web
+   * Initialize browser and connect to WhatsApp Web
    */
-  async connect(): Promise<{ success: boolean; qrCode?: string; message: string }> {
+  async connect(): Promise<boolean> {
     try {
-      if (this.client) {
-        return { success: true, message: "Already connected" };
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--single-process",
+        ],
+      });
+
+      this.page = await this.browser.newPage();
+      await this.page.setViewport({ width: 1280, height: 720 });
+
+      // Load session if exists
+      const sessionPath = path.join(SESSION_DIR, `session-${this.phoneNumber}.json`);
+      if (fs.existsSync(sessionPath)) {
+        const cookies = JSON.parse(fs.readFileSync(sessionPath, "utf-8"));
+        await this.page.setCookie(...cookies);
       }
 
-      // Load WhatsApp classes
-      await loadWhatsAppClasses();
+      // Navigate to WhatsApp Web
+      await this.page.goto("https://web.whatsapp.com", { waitUntil: "networkidle2" });
 
-      this.isScanning = true;
+      // Wait for QR code or chat interface
+      const isLoggedIn = await this.checkLoginStatus();
 
-      // Create client with local authentication
-      this.client = new WhatsAppClientClass({
-        authStrategy: new LocalAuthClass({
-          clientId: `client-${this.phoneNumber}`,
-          dataPath: SESSION_DIR,
-        }),
-        puppeteer: {
-          headless: true,
-          args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-          ],
-        },
-      });
-
-      // Handle QR code
-      this.client!.on("qr", async (qr: string) => {
-        try {
-          // Generate QR code as data URL
-          this.qrCode = await qrcode.toDataURL(qr);
-          console.log("QR Code generated, waiting for scan...");
-        } catch (error) {
-          console.error("Error generating QR code:", error);
-        }
-      });
-
-      // Handle ready event
-      this.client!.on("ready", () => {
-        console.log("WhatsApp client is ready!");
-        this.isConnected = true;
-        this.isScanning = false;
-        this.qrCode = null;
-      });
-
-      // Handle disconnection
-      this.client!.on("disconnected", () => {
-        console.log("WhatsApp client disconnected");
-        this.isConnected = false;
-        this.client = null;
-      });
-
-      // Handle authentication failure
-      this.client!.on("auth_failure", () => {
-        console.error("Authentication failed");
-        this.isConnected = false;
-        this.isScanning = false;
-      });
-
-      // Initialize client
-      await this.client!.initialize();
-
-      // Wait for connection with timeout
-      const timeout = 120000; // 2 minutes
-      const startTime = Date.now();
-
-      while (this.isScanning && Date.now() - startTime < timeout) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!isLoggedIn) {
+        console.log("QR Code needed. Please scan it on the browser.");
+        // Wait for user to scan QR code (max 60 seconds)
+        await this.page.waitForSelector('[data-testid="chat-list-item"]', { timeout: 60000 }).catch(() => {});
       }
 
-      if (this.isConnected) {
-        return { success: true, message: "Connected successfully" };
-      } else if (this.qrCode) {
-        return { success: false, qrCode: this.qrCode, message: "Please scan the QR code" };
-      } else {
-        throw new Error("Failed to connect to WhatsApp");
-      }
+      // Save session cookies
+      const cookies = await this.page.cookies();
+      fs.writeFileSync(sessionPath, JSON.stringify(cookies, null, 2));
+
+      this.isConnected = true;
+      return true;
     } catch (error) {
       console.error("Error connecting to WhatsApp Web:", error);
       this.isConnected = false;
-      this.isScanning = false;
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : "Connection failed",
-      };
+      return false;
     }
   }
 
   /**
-   * Get current QR code
+   * Check if already logged in
    */
-  getQRCode(): string | null {
-    return this.qrCode;
+  private async checkLoginStatus(): Promise<boolean> {
+    try {
+      if (!this.page) return false;
+      
+      // Try to find chat list (indicates logged in)
+      const chatList = await this.page.$('[data-testid="chat-list-item"]');
+      return !!chatList;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -143,27 +95,33 @@ export class WhatsAppClient {
    */
   async sendTextMessage(toPhoneNumber: string, message: string): Promise<boolean> {
     try {
-      if (!this.client || !this.isConnected) {
+      if (!this.page || !this.isConnected) {
         throw new Error("WhatsApp not connected. Please login first.");
       }
 
-      // Format phone number (remove non-digits and add country code if needed)
-      let formattedNumber = toPhoneNumber.replace(/\D/g, "");
+      // Format phone number (remove non-digits)
+      const formattedNumber = toPhoneNumber.replace(/\D/g, "");
 
-      // Add country code if not present (assume Brazil +55)
-      if (formattedNumber.length === 11) {
-        formattedNumber = "55" + formattedNumber;
-      } else if (formattedNumber.length === 10) {
-        formattedNumber = "55" + formattedNumber;
+      // Open chat with contact
+      const chatUrl = `https://web.whatsapp.com/send?phone=${formattedNumber}&text=${encodeURIComponent(message)}`;
+      await this.page.goto(chatUrl, { waitUntil: "networkidle2" });
+
+      // Wait for message input field
+      await this.page.waitForSelector('[data-testid="compose-box-input"]', { timeout: 10000 });
+
+      // Type message
+      const inputField = await this.page.$('[data-testid="compose-box-input"]');
+      if (inputField) {
+        await inputField.type(message);
       }
 
-      // Add @c.us suffix for WhatsApp
-      const chatId = formattedNumber + "@c.us";
+      // Send message (click send button or press Ctrl+Enter)
+      await this.page.keyboard.press("Enter");
 
-      // Send message
-      await this.client.sendMessage(chatId, message);
+      // Wait a bit for message to be sent
+      await this.page.waitForTimeout(2000);
 
-      console.log(`Message sent to ${toPhoneNumber}`);
+      console.log(`Message sent to ${formattedNumber}`);
       return true;
     } catch (error) {
       console.error("Error sending WhatsApp message:", error);
@@ -198,8 +156,8 @@ export class WhatsAppClient {
    */
   async verifyPhoneNumber(): Promise<boolean> {
     try {
-      if (!this.client) return false;
-      return this.isConnected;
+      if (!this.page) return false;
+      return await this.checkLoginStatus();
     } catch {
       return false;
     }
@@ -216,17 +174,14 @@ export class WhatsAppClient {
   }
 
   /**
-   * Disconnect and close client
+   * Disconnect and close browser
    */
   async disconnect(): Promise<void> {
     try {
-      if (this.client) {
-        await this.client.destroy();
-        this.client = null;
+      if (this.browser) {
+        await this.browser.close();
       }
       this.isConnected = false;
-      this.isScanning = false;
-      this.qrCode = null;
     } catch (error) {
       console.error("Error disconnecting:", error);
     }
@@ -237,13 +192,6 @@ export class WhatsAppClient {
    */
   isLoggedIn(): boolean {
     return this.isConnected;
-  }
-
-  /**
-   * Check if currently scanning QR code
-   */
-  isWaitingForQRScan(): boolean {
-    return this.isScanning;
   }
 }
 

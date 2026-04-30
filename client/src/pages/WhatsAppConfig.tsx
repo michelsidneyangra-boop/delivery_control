@@ -25,6 +25,7 @@ export default function WhatsAppConfig() {
   // Mutations
   const loginMutation = trpc.whatsapp.login.useMutation();
   const logoutMutation = trpc.whatsapp.logout.useMutation();
+  const verifyMutation = trpc.whatsapp.verifyConnection.useMutation();
   const updateTemplateMutation = trpc.whatsapp.updateTemplate.useMutation();
   const sendTestMutation = trpc.whatsapp.sendTestMessage.useMutation();
 
@@ -74,6 +75,22 @@ export default function WhatsAppConfig() {
     }
   };
 
+  const handleVerifyConnection = async () => {
+    setIsLoading(true);
+    try {
+      const result = await verifyMutation.mutateAsync();
+      if (result.isConnected) {
+        toast.success(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (error) {
+      toast.error("Erro ao verificar conexão");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSendTest = async () => {
     if (!testPhoneNumber || !testMessage) {
       toast.error("Preencha número de telefone e mensagem");
@@ -101,12 +118,12 @@ export default function WhatsAppConfig() {
     }
   };
 
-  const handleUpdateTemplate = async (status: string, newTemplate: string) => {
+  const handleUpdateTemplate = async (status: string, template: string) => {
     setIsLoading(true);
     try {
       await updateTemplateMutation.mutateAsync({
         status,
-        template: newTemplate,
+        template,
       });
       toast.success("Template atualizado com sucesso!");
       refetchTemplates();
@@ -272,12 +289,30 @@ export default function WhatsAppConfig() {
             </CardHeader>
             <CardContent className="space-y-6">
               {templates?.map((template: any) => (
-                <TemplateEditor
-                  key={template.status}
-                  template={template}
-                  onSave={handleUpdateTemplate}
-                  isLoading={isLoading}
-                />
+                <div key={template.status} className="space-y-2 pb-6 border-b last:border-b-0">
+                  <label className="text-sm font-medium text-foreground capitalize">
+                    Status: {template.status}
+                  </label>
+                  <Textarea
+                    placeholder="Digite o template de mensagem"
+                    defaultValue={template.template}
+                    onChange={(e) => {
+                      // Update on blur or button click
+                    }}
+                    className="min-h-24"
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Use &#123;&#123;variável&#125;&#125; para inserir dados dinâmicos
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => handleUpdateTemplate(template.status, (e.target as any).previousElementSibling?.value || template.template)}
+                    disabled={isLoading}
+                  >
+                    Salvar Template
+                  </Button>
+                </div>
               ))}
             </CardContent>
           </Card>
@@ -347,35 +382,6 @@ export default function WhatsAppConfig() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function TemplateEditor({ template, onSave, isLoading }: any) {
-  const [templateText, setTemplateText] = useState(template.template);
-
-  return (
-    <div className="space-y-2 pb-6 border-b last:border-b-0">
-      <label className="text-sm font-medium text-foreground capitalize">
-        Status: {template.status}
-      </label>
-      <Textarea
-        placeholder="Digite o template de mensagem"
-        value={templateText}
-        onChange={(e) => setTemplateText(e.target.value)}
-        className="min-h-24"
-        disabled={isLoading}
-      />
-      <p className="text-xs text-muted-foreground">
-        Use &#123;&#123;variável&#125;&#125; para inserir dados dinâmicos
-      </p>
-      <Button
-        size="sm"
-        onClick={() => onSave(template.status, templateText)}
-        disabled={isLoading}
-      >
-        Salvar Template
-      </Button>
     </div>
   );
 }
